@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Blackjack Minimalist</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card-white: #ffffff;
+            --accent: #38bdf8; /* Azul brillante */
+            --win: #10b981;    /* Verde */
+            --loss: #f43f5e;   /* Rojo */
+            --glass: rgba(255, 255, 255, 0.05);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
+
+        body {
+            background-color: var(--bg);
+            color: #f8fafc;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+
+        .game-container {
+            width: 100%;
+            max-width: 450px;
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            position: relative;
+        }
+
+        /* HUD: Puntos y Saldo */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+        }
+
+        .stat-box {
+            background: var(--glass);
+            padding: 8px 15px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            text-align: center;
+        }
+
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; color: var(--accent); letter-spacing: 1px; }
+        .stat-value { font-size: 1.1rem; font-weight: 700; display: block; }
+
+        /* Área de Juego */
+        .table {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        .hand-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-row {
+            display: flex;
+            justify-content: center;
+            gap: -20px; /* Efecto abanico leve */
+            min-height: 110px;
+            width: 100%;
+        }
+
+        /* Cartas */
+        .card {
+            width: 75px;
+            height: 110px;
+            background: var(--card-white);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 8px;
+            color: #1e293b;
+            font-weight: bold;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            animation: deal 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            margin: 0 4px;
+        }
+
+        @keyframes deal {
+            from { transform: translateY(-50px) rotate(10deg); opacity: 0; }
+            to { transform: translateY(0) rotate(0deg); opacity: 1; }
+        }
+
+        /* Mensajes de Estado */
+        #message {
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: 300;
+            color: var(--accent);
+            min-height: 1.5em;
+        }
+
+        /* Controles de Apuesta y Juego */
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding-bottom: 20px;
+        }
+
+        .bet-selector {
+            display: flex;
+            justify-content: space-around;
+            background: var(--glass);
+            padding: 10px;
+            border-radius: 15px;
+        }
+
+        .chip {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: 3px dashed rgba(255,255,255,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .chip:active { transform: scale(0.9); }
+        .chip.selected { border-color: var(--accent); box-shadow: 0 0 15px var(--accent); }
+
+        .btn-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        button {
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        button:disabled { opacity: 0.2; filter: grayscale(1); }
+
+        .btn-main { grid-column: span 2; background: var(--accent); color: var(--bg); }
+        .btn-hit { background: var(--win); color: white; }
+        .btn-stand { background: var(--loss); color: white; }
+
+        .bet-info { text-align: center; font-size: 0.9rem; margin-bottom: 5px; opacity: 0.8; }
+    </style>
+</head>
+<body>
+
+<div class="game-container">
+    <header>
+        <div class="stat-box">
+            <span class="stat-label">Banca</span>
+            <span id="dealer-score" class="stat-value">0</span>
+        </div>
+        <div class="stat-box">
+            <span class="stat-label">Tu Saldo</span>
+            <span id="balance" class="stat-value">$1000</span>
+        </div>
+    </header>
+
+    <main class="table">
+        <div class="hand-container">
+            <div id="dealer-cards" class="card-row"></div>
+        </div>
+
+        <div id="message">Selecciona tu apuesta</div>
+
+        <div class="hand-container">
+            <div id="player-cards" class="card-row"></div>
+            <div class="stat-box" style="width: 80px;">
+                <span class="stat-label">Puntos</span>
+                <span id="player-score" class="stat-value">0</span>
+            </div>
+        </div>
+    </main>
+
+    <footer class="controls">
+        <div id="bet-area">
+            <div class="bet-info">Apuesta actual: <span id="current-bet-display">$0</span></div>
+            <div class="bet-selector">
+                <div class="chip" style="background: #1e293b;" onclick="addBet(10)">10</div>
+                <div class="chip" style="background: #334155;" onclick="addBet(50)">50</div>
+                <div class="chip" style="background: #475569;" onclick="addBet(100)">100</div>
+                <div class="chip" style="background: #c2410c;" onclick="resetBet()">Limpiar</div>
+            </div>
+        </div>
+        
+        <div class="btn-group">
+            <button id="btn-deal" class="btn-main" onclick="deal()">REPARTIR</button>
+            <button id="btn-hit" class="btn-hit" onclick="hit()" disabled>PEDIR</button>
+            <button id="btn-stand" class="btn-stand" onclick="stand()" disabled>PLANTARSE</button>
+        </div>
+    </footer>
+</div>
+
+<script>
+    // Configuración inicial
+    let balance = 1000;
+    let currentBet = 0;
+    let deck = [];
+    let playerHand = [];
+    let dealerHand = [];
+    let gameOver = true;
+
+    // Sonidos Sintetizados
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(f, type="sine", d=0.1) {
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.type = type; o.frequency.value = f;
+        g.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + d);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(); o.stop(audioCtx.currentTime + d);
+    }
+
+    function createDeck() {
+        const suits = ["♠", "♥", "♦", "♣"];
+        const values = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+        deck = [];
+        for (let s of suits) for (let v of values) deck.push({s, v});
+        deck.sort(() => Math.random() - 0.5);
+    }
+
+    function getVal(card) {
+        if (["J", "Q", "K"].includes(card.v)) return 10;
+        if (card.v === "A") return 11;
+        return parseInt(card.v);
+    }
+
+    function calcScore(hand) {
+        let s = hand.reduce((a, c) => a + getVal(c), 0);
+        let aces = hand.filter(c => c.v === "A").length;
+        while (s > 21 && aces > 0) { s -= 10; aces--; }
+        return s;
+    }
+
+    // Lógica de Apuestas
+    function addBet(amount) {
+        if (!gameOver) return;
+        if (balance >= amount) {
+            currentBet += amount;
+            balance -= amount;
+            updateHUD();
+            playSound(500, "triangle");
+        }
+    }
+
+    function resetBet() {
+        if (!gameOver) return;
+        balance += currentBet;
+        currentBet = 0;
+        updateHUD();
+    }
+
+    function updateHUD() {
+        document.getElementById('balance').innerText = `$${balance}`;
+        document.getElementById('current-bet-display').innerText = `$${currentBet}`;
+    }
+
+    function renderCard(card, target) {
+        const el = document.createElement('div');
+        el.className = 'card';
+        if (card.s === "♥" || card.s === "♦") el.style.color = "var(--loss)";
+        el.innerHTML = `<span>${card.v}</span><span style="font-size:1.5rem">${card.s}</span>`;
+        document.getElementById(target).appendChild(el);
+        playSound(400, "square", 0.05);
+    }
+
+    // Flujo del Juego
+    function deal() {
+        if (currentBet <= 0) {
+            document.getElementById('message').innerText = "¡Haz una apuesta primero!";
+            return;
+        }
+        
+        gameOver = false;
+        createDeck();
+        playerHand = [deck.pop(), deck.pop()];
+        dealerHand = [deck.pop()];
+        
+        document.getElementById('player-cards').innerHTML = '';
+        document.getElementById('dealer-cards').innerHTML = '';
+        document.getElementById('message').innerText = "Tu turno...";
+        
+        playerHand.forEach(c => renderCard(c, 'player-cards'));
+        dealerHand.forEach(c => renderCard(c, 'dealer-cards'));
+        
+        document.getElementById('btn-deal').disabled = true;
+        document.getElementById('btn-hit').disabled = false;
+        document.getElementById('btn-stand').disabled = false;
+        
+        checkStatus();
+    }
+
+    function hit() {
+        const card = deck.pop();
+        playerHand.push(card);
+        renderCard(card, 'player-cards');
+        checkStatus();
+    }
+
+    function checkStatus() {
+        const pScore = calcScore(playerHand);
+        document.getElementById('player-score').innerText = pScore;
+        document.getElementById('dealer-score').innerText = calcScore(dealerHand);
+
+        if (pScore > 21) {
+            endGame("Te pasaste. Pierdes $" + currentBet);
+        } else if (pScore === 21) {
+            stand();
+        }
+    }
+
+    async function stand() {
+        document.getElementById('btn-hit').disabled = true;
+        document.getElementById('btn-stand').disabled = true;
+
+        let dScore = calcScore(dealerHand);
+        while (dScore < 17) {
+            await new Promise(r => setTimeout(r, 600));
+            const card = deck.pop();
+            dealerHand.push(card);
+            renderCard(card, 'dealer-cards');
+            dScore = calcScore(dealerHand);
+            document.getElementById('dealer-score').innerText = dScore;
+        }
+
+        const pScore = calcScore(playerHand);
+        if (dScore > 21 || pScore > dScore) {
+            let win = currentBet * 2;
+            balance += win;
+            endGame(`¡Ganas $${win}!`);
+        } else if (dScore > pScore) {
+            endGame(`Banca gana. Pierdes $${currentBet}`);
+        } else {
+            balance += currentBet;
+            endGame("Empate. Recuperas apuesta.");
+        }
+    }
+
+    function endGame(msg) {
+        document.getElementById('message').innerText = msg;
+        currentBet = 0;
+        gameOver = true;
+        updateHUD();
+        document.getElementById('btn-deal').disabled = false;
+        document.getElementById('btn-hit').disabled = true;
+        document.getElementById('btn-stand').disabled = true;
+        
+        if (balance <= 0 && currentBet <= 0) {
+            setTimeout(() => {
+                alert("Te has quedado sin dinero. ¡Reiniciando con $1000!");
+                balance = 1000;
+                updateHUD();
+            }, 1000);
+        }
+    }
+</script>
+
+</body>
+</html>
